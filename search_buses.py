@@ -76,6 +76,7 @@ def project_stop_on_route(stop, route):
     segment_projections = []
     for i in range(len(route) - 1):
         if route[i] == route[i+1]:
+            segment_projections.append(route[i])
             continue
         (x1, y1), (x2, y2) = point_to_xy(route[i]), point_to_xy(route[i+1])
         coef = ((x2-x1) * (x0-x1) + (y2-y1) * (y0-y1)) / ((x2-x1)**2 + (y2-y1)**2)
@@ -126,7 +127,7 @@ def line_matches_query(line, start, end, max_distance):
                 {'id': stop_code, 'coords': stop_coords}
                 for stop_code, stop_coords
                 in zip(line['stop_codes'][start_ind : end_ind + 1],
-                    line['stop_coords'][start_ind : end_ind + 1])
+                       line['stop_coords'][start_ind : end_ind + 1])
             ],
             'shape': [start_route_pt] + line['shape'][start_route_ind + 1 : end_route_ind + 1] + [end_route_pt],
         },
