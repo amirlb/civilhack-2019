@@ -29,6 +29,16 @@ def distance(pt1, pt2):
     return c * r
 
 
+def point_to_xy(point):
+    lat, lng = point
+    return (lng * 94051.21245, lat * 111111.11111)
+
+
+def xy_to_point(xy):
+    x, y = xy
+    return (y / 111111.11111, x / 94051.21245)
+
+
 def parse_coords(coords_str):
     lat, lng = coords_str.split(',')
     return [float(lat), float(lng)]
@@ -61,23 +71,67 @@ for row in csv.DictReader(open('data/2019-03-20_route_stats.csv')):
     }
 
 
+def project_stop_on_route(stop, route):
+    (x0, y0) = point_to_xy(stop)
+    segment_projections = []
+    for i in range(len(route) - 1):
+        if route[i] == route[i+1]:
+            continue
+        (x1, y1), (x2, y2) = point_to_xy(route[i]), point_to_xy(route[i+1])
+        coef = ((x2-x1) * (x0-x1) + (y2-y1) * (y0-y1)) / ((x2-x1)**2 + (y2-y1)**2)
+        if coef <= 0:
+            projection = (x1, y1)
+        elif coef >= 1:
+            projection = (x2, y2)
+        else:
+            projection = (x1 + coef * (x2-x1), y1 + coef * (y2-y1))
+        segment_projections.append(xy_to_point(projection))
+    best_ind = min(range(len(segment_projections)),
+                   key=lambda i: distance(segment_projections[i], stop))
+    return best_ind, segment_projections[best_ind]
+
+
+def generate_walk_instruction(start, end):
+    return {
+        'instruction': 'walk',
+        'meters': distance(start, end),
+        'from': start,
+        'to': end,
+    }
+
+
 def line_matches_query(line, start, end, max_distance):
     stops = line['stop_coords']
-    start_ind = next((i for i in range(len(stops)) if distance(start, stops[i]) < max_distance), None)
-    end_ind = next((i for i in reversed(range(len(stops))) if distance(stops[i], end) < max_distance), None)
-    if start_ind is not None and end_ind is not None and start_ind < end_ind:
-        return {
-            'short_name': line['short_name'],
+    start_ind = min(range(len(stops)), key=lambda i: distance(start, stops[i]))
+    end_ind = min(range(len(stops)), key=lambda i: distance(stops[i], end))
+    if start_ind is None or end_ind is None or start_ind >= end_ind:
+        return None
+    if start_ind >= end_ind:
+        return None
+    if distance(start, stops[start_ind]) > max_distance:
+        return None
+    if distance(stops[end_ind], end) > max_distance:
+        return None
+
+    start_route_ind, start_route_pt = project_stop_on_route(stops[start_ind], line['shape'])
+    end_route_ind, end_route_pt = project_stop_on_route(stops[end_ind], line['shape'])
+    return [
+        generate_walk_instruction(start, stops[start_ind]),
+        {
+            'instruction': 'take bus',
+            'line_number': line['short_name'],
             'long_name': line['long_name'],
             'alternative': line['alternative'],
             'stops': [
                 {'id': stop_code, 'coords': stop_coords}
                 for stop_code, stop_coords
                 in zip(line['stop_codes'][start_ind : end_ind + 1],
-                       line['stop_coords'][start_ind : end_ind + 1])
+                    line['stop_coords'][start_ind : end_ind + 1])
             ],
-            'shape': line['shape'],
-        }
+            'shape': [start_route_pt] + line['shape'][start_route_ind + 1 : end_route_ind + 1] + [end_route_pt],
+        },
+        generate_walk_instruction(stops[end_ind], end)
+    ]
 
 
 @app.route('/query')
@@ -85,14 +139,17 @@ def query():
     start = parse_coords(request.args.get('start'))
     end = parse_coords(request.args.get('end'))
     max_distance = int(request.args.get('walk', 400))
-    lines = []
+    stops = {}
+    trips = []
     for route_id, line in all_lines.items():
-        cut_line = line_matches_query(line, start, end, max_distance)
-        if cut_line is not None:
-            lines.append({
-                'id': route_id,
-                'name': f'{cut_line["short_name"]}\n{cut_line["long_name"]}',
-                'stops': cut_line['stops'],
-                'route': cut_line['shape']
-            })
-    return jsonify(dict(lines=lines))
+        instructions = line_matches_query(line, start, end, max_distance)
+        if instructions is not None:
+            for step in instructions:
+                if step['instruction'] == 'take bus':
+                    for stop in step['stops']:
+                        if stop['id'] not in stops:
+                            stops[stop['id']] = {'coords': stop['coords'], 'lines': []}
+                        if step['line_number'] not in stops[stop['id']]['lines']:
+                            stops[stop['id']]['lines'].append(step['line_number'])
+            trips.append(instructions)
+    return jsonify(dict(trips=trips, stops=stops))
