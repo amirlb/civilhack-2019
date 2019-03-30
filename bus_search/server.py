@@ -12,6 +12,11 @@ Compress(app)
 CORS(app)
 
 
+def parse_hour(hour_str):
+    parts = hour_str.split(':')
+    return sum(int(part) / 60.0**ind for ind, part in enumerate(parts))
+
+
 print('Loading shapes...')
 # shapes = {}
 # for row in csv.DictReader(open('data/shapes_dif_20181001-20190320.csv')):
@@ -26,17 +31,34 @@ shapes = json.load(open('data/shapes.json'))
 
 print('Loading lines...')
 all_lines = {}
+all_stops = {}
 for row in csv.DictReader(open('data/2019-03-20_route_stats.csv')):
     if row['route_id'] not in shapes:
         continue
-    all_lines[row['route_id']] = {
+    line = {
         'short_name': row['route_short_name'],
         'long_name': row['route_long_name'],
         'alternative': row['route_alternative'],
+        'start_time': parse_hour(row['start_time']),
+        'end_time': parse_hour(row['end_time']),
         'stop_codes': row['all_stop_code'].split(';'),
         'stop_points': list(map(Point.from_string, row['all_stop_latlon'].split(';'))),
         'shape': Path([Point(lat, lng) for lat, lng in shapes[row['route_id']]]),
     }
+    all_lines[row['route_id']] = line
+    for code, point in zip(line['stop_codes'], line['stop_points']):
+        if code not in all_stops:
+            all_stops[code] = {'point': point, 'lines': set()}
+        all_stops[code]['lines'].add(line['short_name'])
+
+
+all_busy_data = []
+for row in csv.DictReader(open('data/stuck_data.csv')):
+    all_busy_data.append({
+        'hour': parse_hour(row['time_recorded']),
+        'place': Point(float(row['lat']), float(row['lon'])),
+        'busy_index': float(row['busy_index']),
+    })
 
 
 def generate_walk_instruction(start, end):
@@ -65,23 +87,47 @@ def generate_bus_instruction(line, start_ind, end_ind):
     }
 
 
-def line_matches_query(line, start, end, max_distance):
-    stops = line['stop_points']
-    start_ind = min(range(len(stops)), key=lambda i: start.distance(stops[i]))
-    end_ind = min(range(len(stops)), key=lambda i: stops[i].distance(end))
-    if start_ind is None or end_ind is None or start_ind >= end_ind:
+def get_stops(hour, point, max_distance):
+    good_stops = {}
+    for route_id, line in all_lines.items():
+        if line['start_time'] <= hour <= line['end_time']:
+            scores = list(map(point.distance, line['stop_points']))
+            ind = min(range(len(scores)), key=lambda i: scores[i])
+            if scores[ind] <= max_distance:
+                good_stops[route_id] = ind
+    return good_stops
+
+
+def two_lines_match_query(line1, line2, start, end, max_distance):
+    start_ind = min(range(len(line1['stop_points'])), key=lambda i: start.distance(line1['stop_points'][i]))
+    end_ind = min(range(len(line2['stop_points'])), key=lambda i: line2['stop_points'][i].distance(end))
+    if start_ind is None or end_ind is None:
         return None
-    if start_ind >= end_ind:
+    if start.distance(line1['stop_points'][start_ind]) > max_distance:
         return None
-    if start.distance(stops[start_ind]) > max_distance:
-        return None
-    if stops[end_ind].distance(end) > max_distance:
+    if line2['stop_points'][end_ind].distance(end) > max_distance:
         return None
 
+    scores = {
+        (off_ind, on_ind): off_point.distance(on_point)
+        for off_ind, off_point in enumerate(line1['stop_points'])
+        for on_ind, on_point in enumerate(line2['stop_points'])
+        if start_ind < off_ind and on_ind < end_ind
+    }
+    off_ind, on_ind = min(scores.keys(), key=lambda pair: scores[pair])
+    off_point = line1['stop_points'][off_ind]
+    on_point = line2['stop_points'][on_ind]
+    if off_point.distance(on_point) > max_distance:
+        return None
+
+    walk_between = [] if off_point == on_point else [generate_walk_instruction(off_point, on_point)]
+
     return [
-        generate_walk_instruction(start, stops[start_ind]),
-        generate_bus_instruction(line, start_ind, end_ind),
-        generate_walk_instruction(stops[end_ind], end)
+        generate_walk_instruction(start, line1['stop_points'][start_ind]),
+        generate_bus_instruction(line1, start_ind, off_ind)
+    ] + walk_between + [
+        generate_bus_instruction(line2, on_ind, end_ind),
+        generate_walk_instruction(line2['stop_points'][end_ind], end)
     ]
 
 
@@ -89,19 +135,52 @@ def line_matches_query(line, start, end, max_distance):
 def query():
     start = Point.from_string(request.args.get('start'))
     end = Point.from_string(request.args.get('end'))
+    hour = parse_hour(request.args.get('hour', '7'))
     max_distance = int(request.args.get('walk', 400))
-    stops = {}
     trips = []
-    for line in all_lines.values():
-        instructions = line_matches_query(line, start, end, max_distance)
-        if instructions is not None:
-            trips.append(instructions)
-    for trip in trips:
-        for step in trip:
-            if step['instruction'] == 'take bus':
-                for stop in step['stops']:
-                    if stop['id'] not in stops:
-                        stops[stop['id']] = {'coords': stop['coords'], 'lines': []}
-                    if step['line_number'] not in stops[stop['id']]['lines']:
-                        stops[stop['id']]['lines'].append(step['line_number'])
-    return jsonify(dict(trips=trips, stops=stops))
+    start_points = get_stops(hour, start, max_distance)
+    end_points = get_stops(hour, end, max_distance)
+    for route_id in set(start_points.keys()) & set(end_points.keys()):
+        start_ind = start_points[route_id]
+        end_ind = end_points[route_id]
+        if start_ind < end_ind:
+            line = all_lines[route_id]
+            stops = line['stop_points']
+            trip = [
+                generate_walk_instruction(start, stops[start_ind]),
+                generate_bus_instruction(line, start_ind, end_ind),
+                generate_walk_instruction(stops[end_ind], end)
+            ]
+            trips.append(trip)
+    if request.args.get('allow_swaps'):
+        for route_id1 in start_points.keys():
+            for route_id2 in end_points.keys():
+                if route_id1 == route_id2:
+                    continue
+                line1 = all_lines[route_id1]
+                line2 = all_lines[route_id2]
+                instructions = two_lines_match_query(line1, line2, start, end, max_distance)
+                if instructions is not None:
+                    trips.append(instructions)
+    busy_data = [
+        {
+            'coords': datum['place'].to_tuple(),
+            'busy_index': datum['busy_index']
+        }
+        for datum in all_busy_data
+        if hour <= datum['hour'] < hour + 1
+    ]
+    return jsonify(dict(trips=trips, busy_data=busy_data))
+
+
+@app.route('/stops')
+def stops():
+    center = Point.from_string(request.args.get('center', '32.1752,34.9023'))
+    radius = int(request.args.get('radius', 10000))
+    relevant_stops = {
+        code: {'coords': stop['point'].to_tuple(),
+               'lines': sorted(stop['lines'])}
+        for code, stop in all_stops.items()
+        if center.distance(stop['point']) <= radius
+    }
+    return jsonify(relevant_stops)
