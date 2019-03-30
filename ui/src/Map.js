@@ -26,6 +26,18 @@ const busIcon = new L.Icon({
     className: 'bus-icon'
 });
 
+const busStopIcon = new L.Icon({
+    iconUrl: require('./img/bus-stop-icon.png'),
+    iconRetinaUrl: require('./img/bus-stop-icon.png'),
+    iconAnchor: new L.Point(15, 40),
+    popupAnchor: new L.Point(0, -30),
+    shadowUrl: null,
+    shadowSize: null,
+    shadowAnchor: null,
+    iconSize: new L.Point(30, 40),
+    className: 'bus-stop-icon'
+});
+
 const { Overlay } = LayersControl;
 const position = [32.1712, 34.9043];
 
@@ -46,6 +58,7 @@ class Map extends Component {
         super(props);
 
         this.state = {
+            keyPrefix: Math.random(),
             trips: null,
             stops: null,
             busyData: null,
@@ -102,22 +115,26 @@ class Map extends Component {
     };
 
     handleLineClick(tripId) {
-        this.setState({tripIdOrder: [...this.state.tripIdOrder.filter(id => id !== tripId), tripId]});
+        // Random keyPrefix to verify all lines are rendered again - to render the correct one on top.
+        this.setState({keyPrefix: Math.random(), tripIdOrder: [...this.state.tripIdOrder.filter(id => id !== tripId), tripId]});
     }
 
     renderLineStop(step, stop, lineColor, index) {
+        const stopData = this.state.stops[stop.id];
+        const otherLinesText = stopData ? stopData.lines.filter(line => line !== step.line_number).join(', ') : '';
         return (
-            <CircleMarker key={Math.random()} center={stop.coords} radius={7}
+            <CircleMarker key={`${this.state.keyPrefix}-line-${step.line_number}-stop-${stop.id}`} center={stop.coords} radius={7}
                           color={lineColor}
                           fillColor={lineColor} weight={1} fill fillOpacity={1}>
                 <Tooltip sticky>{stop.id}{index === 0 ? ` -> Wait for line: ${step.line_number}` : ''}</Tooltip>
+                <Popup>Lines:<br/> <b>{step.line_number}</b>{otherLinesText ? `, ${otherLinesText}` : ''}</Popup>
             </CircleMarker>
         );
     }
 
     renderWalkStep(step, tripId, lineColor) {
         return (
-            <Polyline key={Math.random()} positions={[step.from, step.to]} weight={5} color={lineColor} dashArray="10" onClick={() => this.handleLineClick(tripId)}>
+            <Polyline key={`${this.state.keyPrefix}-step-${step.id}`} positions={[step.from, step.to]} weight={5} color={lineColor} dashArray="10" onClick={() => this.handleLineClick(tripId)}>
                 <Tooltip sticky>{`Walk ${Math.round(step.meters)} meters`}</Tooltip>
             </Polyline>
         );
@@ -126,7 +143,7 @@ class Map extends Component {
     renderBusStep(step, tripId, lineColor) {
         return (
             [
-            <Polyline key={Math.random()} positions={step.shape} weight={9} color={lineColor} onClick={() => this.handleLineClick(tripId)}>
+            <Polyline key={`${this.state.keyPrefix}-trip-${tripId}`} positions={step.shape} weight={9} color={lineColor} onClick={() => this.handleLineClick(tripId)}>
                 <Tooltip sticky>{`${step.line_number} -> ${step.long_name}`}</Tooltip>
             </Polyline>,
                 ...step.stops.map((stop, index) => this.renderLineStop(step, stop, lineColor, index))
@@ -145,11 +162,6 @@ class Map extends Component {
     renderTrip = (trip) => {
         const lineColor = colors[trip.id % colors.length];
         return trip.map(step => this.renderTripStep(step, trip.id, lineColor));
-        // return (
-        //     <LayerGroup>
-        //         {trip.map(step => this.renderTripStep(step, trip.id, lineColor))}
-        //     </LayerGroup>
-        // );
     };
 
     renderRoutes() {
@@ -211,23 +223,23 @@ class Map extends Component {
 
     renderStop(stopId, stop) {
         return (
-            <CircleMarker key={stopId} center={stop.coords} radius={7}
-                          color="#000" fillColor="#fff" weight={1} fill fillOpacity={1} onClick={() => {
+            <Marker position={stop.coords} key={stopId} icon={busStopIcon} onClick={() => {
                 switch (this.state.nextClickType) {
                     case CLICK_TYPE.FROM:
-                        this.setState({from: stop.coords, nextClickType: CLICK_TYPE.TO});
+                        this.setState({from: {lat: stop.coords[0], lng:  stop.coords[1]}, nextClickType: CLICK_TYPE.TO});
                         this.getLines();
                         break;
                     case CLICK_TYPE.TO:
-                        this.setState({to: stop.coords, nextClickType: CLICK_TYPE.NONE});
+                        this.setState({to: {lat: stop.coords[0], lng:  stop.coords[1]}, nextClickType: CLICK_TYPE.NONE});
                         this.getLines();
                         break;
                     default:
                         break;
-                }}}>
-                <Tooltip sticky>{`${stopId}`}</Tooltip>
+                }
+            }}>
+                <Tooltip sticky>{stopId}</Tooltip>
                 <Popup>lines:<br/> {stop.lines.join(', ')}</Popup>
-            </CircleMarker>
+            </Marker>
         );
     }
 
@@ -341,7 +353,7 @@ class Map extends Component {
                           </LayerGroup>
                       </Overlay>
                       <Overlay checked name="Congestions">
-                          <HeatmapLayer
+                          {this.state.busyData && <HeatmapLayer
                               fitBoundsOnLoad
                               points={this.state.busyData}
                               longitudeExtractor={m => m.lng}
@@ -350,7 +362,7 @@ class Map extends Component {
                               max={10}
                               // blur={1}
                               minOpacity={0.1}
-                          />
+                          />}
                       </Overlay>
                   </LayersControl>
 
