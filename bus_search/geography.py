@@ -86,3 +86,16 @@ class Path:
         best_ind = min(range(len(segment_projections)),
                     key=lambda i: point.distance(segment_projections[i]))
         return segment_projections[best_ind], best_ind
+
+
+class ApproxCover:
+    def __init__(self, points, distance):
+        self.range = distance * 1.25
+        self.points = [points[0]]
+        for point in points[1:]:
+            if any(point.distance(pt) < distance * 0.25 for pt in self.points):
+                continue
+            self.points.append(point)
+
+    def contains(self, point):
+        return any(point.distance(pt) < self.range for pt in self.points)

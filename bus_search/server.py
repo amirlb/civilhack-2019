@@ -4,7 +4,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_compress import Compress
 
-from geography import Point, Path
+from geography import Point, Path, ApproxCover
 
 
 app = Flask(__name__)
@@ -141,6 +141,7 @@ def query():
     end = Point.from_string(request.args.get('end'))
     hour = parse_hour(request.args.get('hour', '7'))
     max_distance = int(request.args.get('walk', 400))
+    busy_data_range = int(request.args.get('busy_data_range', 1000))
     trips = []
     start_points = get_stops(hour, start, max_distance)
     end_points = get_stops(hour, end, max_distance)
@@ -166,13 +167,15 @@ def query():
                 instructions = two_lines_match_query(line1, line2, start, end, max_distance)
                 if instructions is not None:
                     trips.append(instructions)
+    cover = ApproxCover([start, end] + [Point(*point) for trip in trips for step in trip if step['instruction'] == 'take bus' for point in step['shape']],
+                        busy_data_range)
     busy_data = [
         {
             'coords': datum['place'].to_tuple(),
             'busy_index': datum['busy_index']
         }
         for datum in all_busy_data
-        if hour <= datum['hour'] < hour + 1
+        if hour <= datum['hour'] < hour + 1 and cover.contains(datum['place'])
     ]
     return jsonify(dict(trips=trips, busy_data=busy_data))
 
@@ -182,8 +185,7 @@ def stops():
     MAX_LIMIT = 1000
     offset = int(request.args.get('offset', 0))
     limit = min(MAX_LIMIT, int(request.args.get('limit', 20)))
-    result = all_stops[offset : offset + limit]
     return jsonify({
-        'data': result,
+        'data': all_stops[offset : offset + limit],
         'pagination': {'limit': MAX_LIMIT, 'count': len(all_stops)}
     })
