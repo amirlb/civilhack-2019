@@ -101,6 +101,25 @@ def generate_walk_instruction(start, end):
     }
 
 
+def generate_bus_instruction(line, start_ind, end_ind):
+    stops = line['stop_coords']
+    start_route_ind, start_route_pt = project_stop_on_route(stops[start_ind], line['shape'])
+    end_route_ind, end_route_pt = project_stop_on_route(stops[end_ind], line['shape'])
+    return {
+        'instruction': 'take bus',
+        'line_number': line['short_name'],
+        'long_name': line['long_name'],
+        'line_alternative': line['alternative'],
+        'stops': [
+            {'id': stop_code, 'coords': stop_coords}
+            for stop_code, stop_coords
+            in zip(line['stop_codes'][start_ind : end_ind + 1],
+                    line['stop_coords'][start_ind : end_ind + 1])
+        ],
+        'shape': [start_route_pt] + line['shape'][start_route_ind + 1 : end_route_ind + 1] + [end_route_pt],
+    }
+
+
 def line_matches_query(line, start, end, max_distance):
     stops = line['stop_coords']
     start_ind = min(range(len(stops)), key=lambda i: distance(start, stops[i]))
@@ -114,23 +133,9 @@ def line_matches_query(line, start, end, max_distance):
     if distance(stops[end_ind], end) > max_distance:
         return None
 
-    start_route_ind, start_route_pt = project_stop_on_route(stops[start_ind], line['shape'])
-    end_route_ind, end_route_pt = project_stop_on_route(stops[end_ind], line['shape'])
     return [
         generate_walk_instruction(start, stops[start_ind]),
-        {
-            'instruction': 'take bus',
-            'line_number': line['short_name'],
-            'long_name': line['long_name'],
-            'alternative': line['alternative'],
-            'stops': [
-                {'id': stop_code, 'coords': stop_coords}
-                for stop_code, stop_coords
-                in zip(line['stop_codes'][start_ind : end_ind + 1],
-                       line['stop_coords'][start_ind : end_ind + 1])
-            ],
-            'shape': [start_route_pt] + line['shape'][start_route_ind + 1 : end_route_ind + 1] + [end_route_pt],
-        },
+        generate_bus_instruction(line, start_ind, end_ind),
         generate_walk_instruction(stops[end_ind], end)
     ]
 
