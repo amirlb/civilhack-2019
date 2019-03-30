@@ -50,6 +50,10 @@ for row in csv.DictReader(open('data/2019-03-20_route_stats.csv')):
         if code not in all_stops:
             all_stops[code] = {'point': point, 'lines': set()}
         all_stops[code]['lines'].add(line['short_name'])
+all_stops = [
+    {'id': code, 'coords': stop['point'].to_tuple(), 'lines': sorted(stop['lines'])}
+    for code, stop in all_stops.items()
+]
 
 
 all_busy_data = []
@@ -175,12 +179,11 @@ def query():
 
 @app.route('/stops')
 def stops():
-    center = Point.from_string(request.args.get('center', '32.1752,34.9023'))
-    radius = int(request.args.get('radius', 10000))
-    relevant_stops = {
-        code: {'coords': stop['point'].to_tuple(),
-               'lines': sorted(stop['lines'])}
-        for code, stop in all_stops.items()
-        if center.distance(stop['point']) <= radius
-    }
-    return jsonify(relevant_stops)
+    MAX_LIMIT = 1000
+    offset = int(request.args.get('offset', 0))
+    limit = min(MAX_LIMIT, int(request.args.get('limit', 20)))
+    result = all_stops[offset : offset + limit]
+    return jsonify({
+        'data': result,
+        'pagination': {'limit': MAX_LIMIT, 'count': len(all_stops)}
+    })
