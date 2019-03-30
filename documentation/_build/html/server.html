@@ -1,0 +1,218 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>The Server &#8212; The Route Angels  documentation</title>
+    <link rel="stylesheet" href="_static/graphite.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Data Services Module" href="data_services_module.html" />
+    <link rel="prev" title="Creating the Geography" href="geography.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="data_services_module.html" title="Data Services Module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="geography.html" title="Creating the Geography"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">The Route Angels  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="bus_search_module.html" accesskey="U">Bus Search Module</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="the-server">
+<h1>The Server<a class="headerlink" href="#the-server" title="Permalink to this headline">¶</a></h1>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">csv</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="k">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">jsonify</span>
+<span class="kn">from</span> <span class="nn">flask_cors</span> <span class="k">import</span> <span class="n">CORS</span>
+<span class="kn">from</span> <span class="nn">flask_compress</span> <span class="k">import</span> <span class="n">Compress</span>
+
+<span class="kn">from</span> <span class="nn">geography</span> <span class="k">import</span> <span class="n">Point</span><span class="p">,</span> <span class="n">Path</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">Compress</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+<span class="n">CORS</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Loading shapes...&#39;</span><span class="p">)</span>
+<span class="c1"># shapes = {}</span>
+<span class="c1"># for row in csv.DictReader(open(&#39;data/shapes_dif_20181001-20190320.csv&#39;)):</span>
+<span class="c1">#     route_id = row[&#39;route_id&#39;]</span>
+<span class="c1">#     if route_id not in shapes:</span>
+<span class="c1">#         shapes[route_id] = []</span>
+<span class="c1">#     shapes[route_id].append((int(row[&#39;shape_pt_sequence&#39;]), (float(row[&#39;shape_pt_lat&#39;]), float(row[&#39;shape_pt_lon&#39;]))))</span>
+<span class="c1"># shapes = {route_id: [pt for ind, pt in sorted(shape)]</span>
+<span class="c1">#           for route_id, shape in shapes.items()}</span>
+<span class="n">shapes</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;data/shapes.json&#39;</span><span class="p">))</span>
+
+
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Loading lines...&#39;</span><span class="p">)</span>
+<span class="n">all_lines</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictReader</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;data/2019-03-20_route_stats.csv&#39;</span><span class="p">)):</span>
+    <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;route_id&#39;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">:</span>
+        <span class="k">continue</span>
+    <span class="n">all_lines</span><span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;route_id&#39;</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;short_name&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;route_short_name&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;long_name&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;route_long_name&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;alternative&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;route_alternative&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;stop_codes&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;all_stop_code&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;;&#39;</span><span class="p">),</span>
+        <span class="s1">&#39;stop_points&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">Point</span><span class="o">.</span><span class="n">from_string</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;all_stop_latlon&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;;&#39;</span><span class="p">))),</span>
+        <span class="s1">&#39;shape&#39;</span><span class="p">:</span> <span class="n">Path</span><span class="p">([</span><span class="n">Point</span><span class="p">(</span><span class="n">lat</span><span class="p">,</span> <span class="n">lng</span><span class="p">)</span> <span class="k">for</span> <span class="n">lat</span><span class="p">,</span> <span class="n">lng</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;route_id&#39;</span><span class="p">]]]),</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">generate_walk_instruction</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">&#39;instruction&#39;</span><span class="p">:</span> <span class="s1">&#39;walk&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;meters&#39;</span><span class="p">:</span> <span class="n">start</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">end</span><span class="p">),</span>
+        <span class="s1">&#39;from&#39;</span><span class="p">:</span> <span class="n">start</span><span class="o">.</span><span class="n">to_tuple</span><span class="p">(),</span>
+        <span class="s1">&#39;to&#39;</span><span class="p">:</span> <span class="n">end</span><span class="o">.</span><span class="n">to_tuple</span><span class="p">(),</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">generate_bus_instruction</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">start_ind</span><span class="p">,</span> <span class="n">end_ind</span><span class="p">):</span>
+    <span class="n">stops</span> <span class="o">=</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;stop_points&#39;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">&#39;instruction&#39;</span><span class="p">:</span> <span class="s1">&#39;take bus&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;line_number&#39;</span><span class="p">:</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;short_name&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;long_name&#39;</span><span class="p">:</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;long_name&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;line_alternative&#39;</span><span class="p">:</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;alternative&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;stops&#39;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="p">{</span><span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="n">stop_code</span><span class="p">,</span> <span class="s1">&#39;coords&#39;</span><span class="p">:</span> <span class="n">stop_point</span><span class="o">.</span><span class="n">to_tuple</span><span class="p">()}</span>
+            <span class="k">for</span> <span class="n">stop_code</span><span class="p">,</span> <span class="n">stop_point</span>
+            <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">line</span><span class="p">[</span><span class="s1">&#39;stop_codes&#39;</span><span class="p">][</span><span class="n">start_ind</span> <span class="p">:</span> <span class="n">end_ind</span> <span class="o">+</span> <span class="mi">1</span><span class="p">],</span>
+                   <span class="n">line</span><span class="p">[</span><span class="s1">&#39;stop_points&#39;</span><span class="p">][</span><span class="n">start_ind</span> <span class="p">:</span> <span class="n">end_ind</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="p">],</span>
+        <span class="s1">&#39;shape&#39;</span><span class="p">:</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;shape&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">sub_path</span><span class="p">(</span><span class="n">stops</span><span class="p">[</span><span class="n">start_ind</span><span class="p">],</span> <span class="n">stops</span><span class="p">[</span><span class="n">end_ind</span><span class="p">])</span><span class="o">.</span><span class="n">to_list</span><span class="p">(),</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">line_matches_query</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">max_distance</span><span class="p">):</span>
+    <span class="n">stops</span> <span class="o">=</span> <span class="n">line</span><span class="p">[</span><span class="s1">&#39;stop_points&#39;</span><span class="p">]</span>
+    <span class="n">start_ind</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">stops</span><span class="p">)),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">start</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">stops</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+    <span class="n">end_ind</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">stops</span><span class="p">)),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">stops</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">end</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">start_ind</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">end_ind</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">start_ind</span> <span class="o">&gt;=</span> <span class="n">end_ind</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">start_ind</span> <span class="o">&gt;=</span> <span class="n">end_ind</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">start</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">stops</span><span class="p">[</span><span class="n">start_ind</span><span class="p">])</span> <span class="o">&gt;</span> <span class="n">max_distance</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">stops</span><span class="p">[</span><span class="n">end_ind</span><span class="p">]</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">end</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">max_distance</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">return</span> <span class="p">[</span>
+        <span class="n">generate_walk_instruction</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stops</span><span class="p">[</span><span class="n">start_ind</span><span class="p">]),</span>
+        <span class="n">generate_bus_instruction</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">start_ind</span><span class="p">,</span> <span class="n">end_ind</span><span class="p">),</span>
+        <span class="n">generate_walk_instruction</span><span class="p">(</span><span class="n">stops</span><span class="p">[</span><span class="n">end_ind</span><span class="p">],</span> <span class="n">end</span><span class="p">)</span>
+    <span class="p">]</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/query&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">query</span><span class="p">():</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">Point</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;start&#39;</span><span class="p">))</span>
+    <span class="n">end</span> <span class="o">=</span> <span class="n">Point</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;end&#39;</span><span class="p">))</span>
+    <span class="n">max_distance</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;walk&#39;</span><span class="p">,</span> <span class="mi">400</span><span class="p">))</span>
+    <span class="n">stops</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">trips</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">all_lines</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="n">instructions</span> <span class="o">=</span> <span class="n">line_matches_query</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">max_distance</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">instructions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">trips</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">instructions</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">trip</span> <span class="ow">in</span> <span class="n">trips</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">trip</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">step</span><span class="p">[</span><span class="s1">&#39;instruction&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;take bus&#39;</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">stop</span> <span class="ow">in</span> <span class="n">step</span><span class="p">[</span><span class="s1">&#39;stops&#39;</span><span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">stop</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">stops</span><span class="p">:</span>
+                        <span class="n">stops</span><span class="p">[</span><span class="n">stop</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;coords&#39;</span><span class="p">:</span> <span class="n">stop</span><span class="p">[</span><span class="s1">&#39;coords&#39;</span><span class="p">],</span> <span class="s1">&#39;lines&#39;</span><span class="p">:</span> <span class="p">[]}</span>
+                    <span class="k">if</span> <span class="n">step</span><span class="p">[</span><span class="s1">&#39;line_number&#39;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">stops</span><span class="p">[</span><span class="n">stop</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]][</span><span class="s1">&#39;lines&#39;</span><span class="p">]:</span>
+                        <span class="n">stops</span><span class="p">[</span><span class="n">stop</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]][</span><span class="s1">&#39;lines&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">step</span><span class="p">[</span><span class="s1">&#39;line_number&#39;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">trips</span><span class="o">=</span><span class="n">trips</span><span class="p">,</span> <span class="n">stops</span><span class="o">=</span><span class="n">stops</span><span class="p">))</span>
+</pre></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p><a class="reference internal" href="index.html#mastertoc"><span class="std std-ref">Return Home</span></a></p>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="index.html">
+              <img class="logo" src="_static/TheRouteAngelsLogo.jpg" alt="Logo"/>
+            </a></p>
+<h3><a href="index.html">Table of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="bus_search_module.html">Bus Search Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data_services_module.html">Data Services Module</a></li>
+</ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="data_services_module.html" title="Data Services Module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="geography.html" title="Creating the Geography"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">The Route Angels  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="bus_search_module.html" >Bus Search Module</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, BarakY, NoaR, AmirLB, DalyaG.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.0.0.
+    </div>
+  </body>
+</html>

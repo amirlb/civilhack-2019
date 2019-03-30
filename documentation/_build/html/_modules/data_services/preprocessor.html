@@ -1,0 +1,156 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>data_services.preprocessor &#8212; The Route Angels  documentation</title>
+    <link rel="stylesheet" href="../../_static/graphite.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">The Route Angels  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for data_services.preprocessor</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="k">import</span> <span class="n">time</span>
+
+
+<div class="viewcode-block" id="Preprocessor"><a class="viewcode-back" href="../../preprocessor.html#data_services.preprocessor.Preprocessor">[docs]</a><span class="k">class</span> <span class="nc">Preprocessor</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time_resolution_minutes</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">geo_resolution_decimals</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="n">gps_pings_stuck_threshold</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">n_stuck_buses_threshold</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                 <span class="n">max_busy_index</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution_minutes</span> <span class="o">=</span> <span class="n">time_resolution_minutes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">geo_resolution_decimals</span> <span class="o">=</span> <span class="n">geo_resolution_decimals</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gps_pings_stuck_threshold</span> <span class="o">=</span> <span class="n">gps_pings_stuck_threshold</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_stuck_buses_threshold</span> <span class="o">=</span> <span class="n">n_stuck_buses_threshold</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_busy_index</span> <span class="o">=</span> <span class="n">max_busy_index</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_col</span> <span class="o">=</span> <span class="s1">&#39;time_recorded&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trip_col</span> <span class="o">=</span> <span class="s1">&#39;trip_id_to_date&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lat_col</span> <span class="o">=</span> <span class="s1">&#39;lat&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lon_col</span> <span class="o">=</span> <span class="s1">&#39;lon&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">slice_cols</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_col</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lat_col</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lon_col</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">all_cols</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">slice_cols</span> <span class="o">+</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">trip_col</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gps_pings_col</span> <span class="o">=</span> <span class="s1">&#39;pgs_pings&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_pings_col</span> <span class="o">=</span> <span class="s1">&#39;total_gps_pings&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_buses_col</span> <span class="o">=</span> <span class="s1">&#39;n_buses&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">busy_index_col</span> <span class="o">=</span> <span class="s1">&#39;busy_index&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lng_col</span> <span class="o">=</span> <span class="s1">&#39;lng&#39;</span>
+
+    <span class="k">def</span> <span class="nf">parse_csv_to_stuck_slices_and_save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_filepath</span><span class="p">,</span> <span class="n">output_filepath</span><span class="p">):</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_csv_to_df</span><span class="p">(</span><span class="n">input_filepath</span><span class="p">)</span>
+        <span class="n">stuck_slices_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_stuck_slices_df</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_stuck_slices_data_to_csv</span><span class="p">(</span><span class="n">stuck_slices_df</span><span class="p">,</span> <span class="n">output_filepath</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">parse_csv_to_df</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filepath</span><span class="p">):</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="n">usecols</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">all_cols</span><span class="p">)</span>
+        <span class="n">df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s1">&#39;time_recorded&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span>
+                                                      <span class="bp">self</span><span class="o">.</span><span class="n">_strtime_to_round_time</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution_minutes</span><span class="p">))</span>
+        <span class="n">df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">lat_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">lat_col</span><span class="p">]</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">geo_resolution_decimals</span><span class="p">)</span>
+        <span class="n">df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">lon_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">lon_col</span><span class="p">]</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">geo_resolution_decimals</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">df</span>
+
+<div class="viewcode-block" id="Preprocessor.get_stuck_slices_df"><a class="viewcode-back" href="../../preprocessor.html#data_services.preprocessor.Preprocessor.get_stuck_slices_df">[docs]</a>    <span class="k">def</span> <span class="nf">get_stuck_slices_df</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">df</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A &quot;slice&quot; is a geo-temporal slice</span>
+<span class="sd">        If a bus spent at least gps_pings_stuck_threshold minutes at the same slice - it&#39;s considered stuck</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">stuck_buses_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">all_cols</span><span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">gps_pings_col</span><span class="p">))</span>
+        <span class="n">stuck_buses_df</span> <span class="o">=</span> <span class="n">stuck_buses_df</span><span class="p">[</span><span class="n">stuck_buses_df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">gps_pings_col</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gps_pings_stuck_threshold</span><span class="p">]</span>
+        <span class="n">stuck_buses_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">stuck_buses_df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">all_cols</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">())</span>
+
+        <span class="c1"># for each time-location slice, get stats for stuck buses</span>
+        <span class="n">df_1</span> <span class="o">=</span> <span class="n">stuck_buses_df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">slice_cols</span><span class="p">)[</span><span class="bp">self</span><span class="o">.</span><span class="n">gps_pings_col</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">total_pings_col</span><span class="p">)</span>
+        <span class="n">df_2</span> <span class="o">=</span> <span class="n">stuck_buses_df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">slice_cols</span><span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_buses_col</span><span class="p">)</span>
+        <span class="n">stuck_slices_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">df_1</span><span class="p">,</span> <span class="n">df_2</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">slice_cols</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;inner&#39;</span><span class="p">)</span>
+
+        <span class="c1"># keep only slices with at least n_stuck_buses_threshold stuck buses</span>
+        <span class="n">stuck_slices_df</span> <span class="o">=</span> <span class="n">stuck_slices_df</span><span class="p">[</span><span class="n">stuck_slices_df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">n_buses_col</span><span class="p">]</span>
+                                          <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_stuck_buses_threshold</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">stuck_slices_df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">busy_index_col</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">stuck_slices_df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">total_pings_col</span><span class="p">]</span>
+                                                <span class="o">//</span> <span class="n">stuck_slices_df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">n_buses_col</span><span class="p">])</span>
+
+        <span class="c1"># Normalize busy index</span>
+        <span class="n">stuck_slices_df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">busy_index_col</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">stuck_slices_df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">busy_index_col</span><span class="p">]</span>
+                                                <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_busy_index</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">stuck_slices_df</span></div>
+
+    <span class="k">def</span> <span class="nf">save_stuck_slices_data_to_csv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stuck_slices_df</span><span class="p">,</span> <span class="n">csv_filepath</span><span class="p">):</span>
+        <span class="n">stuck_slices_df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">csv_filepath</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_strtime_to_round_time</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">n_minutes</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">time</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]),</span> <span class="n">n_minutes</span> <span class="o">*</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="mi">3</span><span class="p">:</span><span class="mi">5</span><span class="p">])</span> <span class="o">//</span> <span class="n">n_minutes</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/TheRouteAngelsLogo.jpg" alt="Logo"/>
+            </a></p>
+<h3><a href="../../index.html">Table of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../bus_search_module.html">Bus Search Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../data_services_module.html">Data Services Module</a></li>
+</ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">The Route Angels  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, BarakY, NoaR, AmirLB, DalyaG.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.0.0.
+    </div>
+  </body>
+</html>

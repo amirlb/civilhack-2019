@@ -1,0 +1,148 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>Data Services Module &#8212; The Route Angels  documentation</title>
+    <link rel="stylesheet" href="_static/graphite.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="The Preprocessor Class" href="preprocessor.html" />
+    <link rel="prev" title="The Server" href="server.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="preprocessor.html" title="The Preprocessor Class"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="server.html" title="The Server"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">The Route Angels  documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="data-services-module">
+<h1>Data Services Module<a class="headerlink" href="#data-services-module" title="Permalink to this headline">¶</a></h1>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>The data services module id composed of two major parts - the preprocessor,
+and the busy-index provider.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="section" id="the-preprocessor">
+<h2>The Preprocessor<a class="headerlink" href="#the-preprocessor" title="Permalink to this headline">¶</a></h2>
+<p>Loads bus routes and perform aggregation
+to discover likely congested geo-temporal slices.</p>
+<p>In practice this means that we take a certain geo-temporal resolution
+(for example, a 100m. radius and 10 min.), and if a specific bus spent at least
+3 minutes in this geo-temporal slice, we say it is stuck.</p>
+<p>Then we take only slices where at least 2 buses were stuck together,
+and say these slices are busy.</p>
+<p>Finally, the average time a bus spent in a busy slice is the “busy index” of that slice.</p>
+<p>The data of the busy slices, together with their busy index, is saved to serve as a static DB.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<img alt="_images/preprocessor.jpg" src="_images/preprocessor.jpg" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</div>
+<div class="section" id="the-busy-index-provider">
+<h2>The Busy Index Provider<a class="headerlink" href="#the-busy-index-provider" title="Permalink to this headline">¶</a></h2>
+<p>Given a time in the day, and how long to see into the future (default 60 minutes),
+aggregate the busy geo-temporal slices and output in a .json format that maps
+busy lat-lng points and their corresponding busy-index.</p>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="toctree-wrapper compound" id="mastertoc">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="preprocessor.html">The Preprocessor Class</a></li>
+<li class="toctree-l1"><a class="reference internal" href="preprocessor_runner.html">The Preprocessor Runner</a></li>
+<li class="toctree-l1"><a class="reference internal" href="busy_index_provider.html">The BusyIndexProvider Class</a></li>
+<li class="toctree-l1"><a class="reference internal" href="busy_index_provider_runner.html">The Busy Index Provider Runner</a></li>
+</ul>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>This documentation was last updated on Mar 30, 2019.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="index.html">
+              <img class="logo" src="_static/TheRouteAngelsLogo.jpg" alt="Logo"/>
+            </a></p>
+<h3><a href="index.html">Table of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="bus_search_module.html">Bus Search Module</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Data Services Module</a></li>
+</ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="preprocessor.html" title="The Preprocessor Class"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="server.html" title="The Server"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">The Route Angels  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, BarakY, NoaR, AmirLB, DalyaG.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.0.0.
+    </div>
+  </body>
+</html>
