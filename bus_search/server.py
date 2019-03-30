@@ -56,12 +56,19 @@ all_stops = [
 ]
 
 
+print('Loading traffic...')
 all_busy_data = []
 for row in csv.DictReader(open('data/stuck_data.csv')):
     all_busy_data.append({
         'hour': parse_hour(row['time_recorded']),
         'place': Point(float(row['lat']), float(row['lon'])),
         'busy_index': float(row['busy_index']),
+    })
+for item in json.load(open('data/stuck_data_2.json'))['data']:
+    all_busy_data.append({
+        'hour': 7.5,
+        'place': Point(item['lat'], item['lon']),
+        'busy_index': item['busy_index']
     })
 
 
@@ -94,7 +101,7 @@ def generate_bus_instruction(line, start_ind, end_ind):
 def get_stops(hour, point, max_distance):
     good_stops = {}
     for route_id, line in all_lines.items():
-        if line['start_time'] <= hour <= line['end_time']:
+        if hour is None or line['start_time'] <= hour <= line['end_time']:
             scores = list(map(point.distance, line['stop_points']))
             ind = min(range(len(scores)), key=lambda i: scores[i])
             if scores[ind] <= max_distance:
@@ -139,7 +146,9 @@ def two_lines_match_query(line1, line2, start, end, max_distance):
 def query():
     start = Point.from_string(request.args.get('start'))
     end = Point.from_string(request.args.get('end'))
-    hour = parse_hour(request.args.get('hour', '7'))
+    hour = request.args.get('hour')
+    if hour is not None:
+        hour = parse_hour(hour)
     max_distance = int(request.args.get('walk', 400))
     busy_data_range = int(request.args.get('busy_data_range', 1000))
     trips = []
@@ -175,17 +184,20 @@ def query():
             'busy_index': datum['busy_index']
         }
         for datum in all_busy_data
-        if hour <= datum['hour'] < hour + 1 and cover.contains(datum['place'])
+        if (hour or 7) <= datum['hour'] < (hour or 7) + 1 and cover.contains(datum['place'])
     ]
     return jsonify(dict(trips=trips, busy_data=busy_data))
 
 
 @app.route('/stops')
 def stops():
+    # optimization hack for live demo
+    center = Point(32.1752, 34.9022)
+    my_stops = [stop for stop in all_stops if center.distance(Point(*stop['coords'])) < 20000 and any(str(x) in stop['lines'] for x in [149, 231, 349, 567, 561, 249, 148, 5, 29,])]
     MAX_LIMIT = 1000
     offset = int(request.args.get('offset', 0))
     limit = min(MAX_LIMIT, int(request.args.get('limit', 20)))
     return jsonify({
-        'data': all_stops[offset : offset + limit],
-        'pagination': {'limit': MAX_LIMIT, 'count': len(all_stops)}
+        'data': my_stops[offset : offset + limit],
+        'pagination': {'limit': MAX_LIMIT, 'count': len(my_stops)}
     })
